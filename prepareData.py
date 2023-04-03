@@ -8,8 +8,11 @@ import os
 import pandas as pd
 import numpy as np
 import random
+import operator
 from enum import Enum
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+from sklearn.model_selection import StratifiedKFold
 
 TEST_SET_SIZE = 0.3 # 1 - TEST_SET_SIZE (70%) - training set, TEST_SET_SIZE (30%) testing set
 VAL_SET_SIZE = 0.5  # 50% of testing set, it means     
@@ -39,8 +42,21 @@ class HemorrageDataset:
         self.__kFoldDataForLoading = []
         self.__kFoldLabelsForLoading = []
       
-    def __kFoldSplitting(self, k):
-        pass
+    def __kFoldSplitting(self, k, sickCases, healthyCases):
+        healthyLabels = [1 for i in range(len(healthyCases))]
+        sickLabels = [0 for i in range(len(sickCases))]
+        allCases = healthyCases + sickCases
+        allLabels = healthyLabels + sickLabels
+        allCases, allLabels = shuffle(allCases, allLabels)
+        
+        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=1)
+        for train_index, test_index in skf.split(allCases, allLabels):
+            trainNumbersFold, testNumbersFold = operator.itemgetter(*train_index)(allCases), operator.itemgetter(*test_index)(allCases)
+            trainData, trainLabels = self.__prepareDataSavingPatienNumberAndSlice(trainNumbersFold)
+            testData, testLabels = self.__prepareDataSavingPatienNumberAndSlice(testNumbersFold)
+            self.__kFoldDataForLoading.append([trainData, testData])
+            self.__kFoldLabelsForLoading.append([trainLabels, testLabels])
+
     
     def __subsetSplitting(self, sickCases, healthyCases):
         trainHealthyPatientsNumbers, testHealthyPatientsNumbers = train_test_split(healthyCases, test_size=TEST_SET_SIZE,random_state=25, shuffle=True)
@@ -84,7 +100,7 @@ class HemorrageDataset:
          healthyPatientsNumbers, sickPatientsNumbers = self.__distinquishHealthyAndSickCases()
          
          if(splittingType == DatasetSplittingType.kFOLD):
-             self.__kFoldSplitting(kFold)
+             self.__kFoldSplitting(kFold, sickPatientsNumbers, healthyPatientsNumbers)
          elif ((splittingType == DatasetSplittingType.TRAIN_VAL_TEST) or (splittingType == DatasetSplittingType.TRAIN_TEST)):
              trainSubset, testSubset, valSubset = self.__subsetSplitting(sickPatientsNumbers, healthyPatientsNumbers) 
              self.__trainDataForLoading, self.__trainLabelsForLoading = self.__prepareDataSavingPatienNumberAndSlice(trainSubset)
@@ -137,7 +153,8 @@ dataset.splitDatasetBasedOnPatientsCases(DatasetSplittingType.TRAIN_VAL_TEST)
 trainData, trainLabels = dataset.get_trainDataWithLabels()
 testData, testLabels = dataset.get_testDataWithLabels()
 valData, valLabels = dataset.get_valDataWithLabels()
-
+dataset.splitDatasetBasedOnPatientsCases(DatasetSplittingType.kFOLD, 10)
+kfoldData, kfoldLabel = dataset.get_kFoldDataWithLabels()
 
 
     
